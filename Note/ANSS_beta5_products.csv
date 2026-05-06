@@ -1,0 +1,57 @@
+# Beta_5 Products in the ANSS E2 Page
+# Product data are computed by beta.py: ANSSData().beta5(x).
+# beta5 uses B2A_inv, data/185_BPBocSS_theta6.txt, and delta to compute products through E_2(S/3).
+# Degree and basis source: data/185_BPAANSS_table.txt.
+# Only nonzero computable products are displayed.
+# Rows are sorted by increasing s_1, then increasing f_1.
+# The product column is the coordinate vector in the original target-basis order from 185_BPAANSS_table.txt.
+# Product vectors use square brackets in this CSV so spreadsheet apps do not interpret (1) as -1.
+# Data rows begin after the s_1,f_1,product header.
+s_1,f_1,product
+0,0,[2]
+10,2,"[0, 2]"
+20,4,"[0, 2]"
+26,2,[2]
+30,6,"[0, 2]"
+34,2,[1]
+36,4,[2]
+40,8,"[0, 2]"
+44,4,[1]
+46,6,[2]
+50,10,"[0, 2]"
+54,6,[1]
+56,8,[2]
+57,3,[2]
+58,2,[2]
+60,12,"[0, 2]"
+64,8,[1]
+66,10,[2]
+67,5,[2]
+68,4,[1]
+68,4,[2]
+70,14,"[0, 2]"
+74,2,[2]
+74,10,[1]
+76,12,[2]
+77,7,[2]
+78,6,[1]
+78,6,[2]
+80,16,"[0, 2]"
+82,2,[2]
+84,12,[1]
+86,14,[2]
+87,9,[2]
+88,8,[1]
+88,8,[2]
+89,3,"[0, 2, 1]"
+90,18,"[0, 2]"
+92,4,[1]
+94,14,[1]
+96,4,"[0, 1, 2]"
+97,11,[2]
+98,10,[1]
+98,10,[2]
+102,6,"[0, 1]"
+105,3,[2]
+106,2,"[0, 2]"
+106,2,"[0, 2]"

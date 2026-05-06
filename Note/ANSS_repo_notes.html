@@ -1,0 +1,895 @@
+<h1 id="notes-on-the-anss-data-repository">Notes on the ANSS Data
+Repository</h1>
+<p>Date explored: 2026-05-05</p>
+<h2 id="executive-summary">Executive Summary</h2>
+<p>This repository does not itself recompute the algebraic Novikov
+spectral sequence from first principles. The heavy computation was done
+externally by the modified <code>MinimalResolution</code> program
+described in <code>README.md</code>; this repo stores the resulting
+tables in <code>data/</code>, a chart PDF, and a small Python interface
+for reading the tables and asking for degrees and products.</p>
+<p>The main Python entry point is <code>beta.py</code>. Its class
+<code>ANSSData</code> parses the table files and exposes methods such as
+<code>in_deg</code>, <code>three</code>, <code>alpha1</code>,
+<code>beta1</code>, <code>beta2</code>, <code>beta33</code>,
+<code>beta4</code>, <code>beta5</code>, and <code>beta63</code>.</p>
+<p>For the two points you asked about:</p>
+<ol type="1">
+<li>The code does not store a precomputed “rank list” as a separate
+object or file. The generator list for the ANSS <code>E_2</code> page is
+built in <code>ANSSData.make_deg_table</code> from
+<code>data/185_BPAANSS_table.txt</code>, skipping algebraic Novikov
+differential lines. Ranks are obtained by counting generators in
+<code>data.deg_table</code> with the same
+<code>(stem, ANSS filtration)</code>. The helper
+<code>data.in_deg(stem, filtration)</code> returns the generators in one
+bidegree, so the rank is
+<code>len(data.in_deg(stem, filtration))</code>.</li>
+<li>Products by <code>3</code> and <code>alpha_1</code> are direct table
+lookups from <code>data/185_BPAANSS_a0.txt</code> and
+<code>data/185_BPAANSS_h0.txt</code>. Products by beta classes are
+computed on demand by composing: translate sphere generators to
+Moore-space/Bockstein names, multiply by a theta table on
+<code>E_2(S/3)</code>, then apply the boundary map <code>delta</code>
+back to sphere names.</li>
+</ol>
+<h2 id="repository-layout">Repository Layout</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README.md</code></td>
+<td>Mathematical overview, source of the data, table conventions, and
+examples for using <code>beta.py</code>.</td>
+</tr>
+<tr>
+<td><code>anss_E2_158.pdf</code></td>
+<td>Chart of the <code>E_2</code> page through the displayed range. The
+README explains the visual key.</td>
+</tr>
+<tr>
+<td><code>beta.py</code></td>
+<td>Main parser/query API. Loads data tables and implements degree
+lookup and products.</td>
+</tr>
+<tr>
+<td><code>lincomb.py</code></td>
+<td>Small finite-field linear-combination class used by
+<code>beta.py</code>.</td>
+</tr>
+<tr>
+<td><code>data/*.txt</code></td>
+<td>Precomputed algebraic Novikov, Bockstein, translation, and
+multiplication tables.</td>
+</tr>
+<tr>
+<td><code>Note/ANSS_repo_notes.md</code></td>
+<td>This note.</td>
+</tr>
+</tbody>
+</table>
+<p>The data files were generated outside this repository by running the
+modified <code>MinimalResolution</code> tools listed in the README:</p>
+<pre class="text"><code>./mr_st 185 90
+./BPtab 185
+./mr_BP 185 40</code></pre>
+<p>The file prefix <code>185</code> means the data are computed through
+Adams-Novikov internal degree 185, not necessarily through stem 185. In
+this parsed data, the largest stem represented among permanent-cycle
+sphere generators is 182.</p>
+<h2 id="runtime-setup">Runtime Setup</h2>
+<p><code>beta.py</code> imports <code>frozendict</code> through
+<code>lincomb.py</code>. That package was missing, so I installed it
+into a local virtual environment:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/pip</span> install frozendict</span></code></pre></div>
+<p>I also added <code>.venv/</code> to <code>.gitignore</code>.</p>
+<p>Pandoc was already available at
+<code>/opt/homebrew/bin/pandoc</code>, so no markdown compiler
+dependency was needed. This note can be compiled to HTML with:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pandoc</span> Note/ANSS_repo_notes.md <span class="at">-o</span> Note/ANSS_repo_notes.html</span></code></pre></div>
+<h2 id="data-file-formats">Data File Formats</h2>
+<h3 id="sphere-algebraic-novikov-table">Sphere algebraic Novikov
+table</h3>
+<p><code>data/185_BPAANSS_table.txt</code> describes the algebraic
+Novikov spectral sequence converging to the sphere ANSS <code>E_2</code>
+page.</p>
+<p>Permanent-cycle lines look like:</p>
+<pre class="text"><code>[0-0]   |deg=(0,0)</code></pre>
+<p>Differential lines look like:</p>
+<pre class="text"><code>v0^1[2-0]   &lt;-  [1-1]   |d2 |deg=(10,3)</code></pre>
+<p>For the code in this repository, only the permanent-cycle lines are
+used to build the ANSS <code>E_2</code> generator degree table.
+Differential lines are skipped by <code>make_deg_table</code>.</p>
+<p>Counts observed:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th style="text-align: right;">Permanent lines</th>
+<th style="text-align: right;">Differential lines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>185_BPAANSS_table.txt</code></td>
+<td style="text-align: right;">577</td>
+<td style="text-align: right;">1155</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_table.txt</code></td>
+<td style="text-align: right;">513</td>
+<td style="text-align: right;">12049</td>
+</tr>
+</tbody>
+</table>
+<p>Most Bockstein differential lines are <code>d0</code> lines;
+<code>beta.py</code> ignores <code>d0</code> entries when building the
+boundary information.</p>
+<h3 id="multiplication-and-translation-tables">Multiplication and
+translation tables</h3>
+<p>Multiplication and translation files use:</p>
+<pre class="text"><code>source  -&gt;  target1+target2+o</code></pre>
+<p>Here <code>o</code> means the zero/noise term and is ignored by
+<code>parse_mult</code>. Repeated terms cancel or combine mod 3 because
+targets are stored as <code>LinComb</code> objects over
+<code>F_3</code>.</p>
+<p>Important files:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>Meaning in the code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>185_BPAANSS_a0.txt</code></td>
+<td>Sphere multiplication by <code>3</code>, exposed as
+<code>data.three(...)</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPAANSS_h0.txt</code></td>
+<td>Sphere multiplication by <code>alpha_1</code>, exposed as
+<code>data.alpha1(...)</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_a0.txt</code></td>
+<td>Moore/Bockstein multiplication by <code>3</code>, used when
+translating boundary values.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_h0.txt</code></td>
+<td>Moore/Bockstein multiplication by <code>alpha_1</code>; parsed but
+not exposed by a public method.</td>
+</tr>
+<tr>
+<td><code>185_BPB2A_table.txt</code></td>
+<td>Translation from Bockstein/Moore names to algebraic Novikov sphere
+names.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta2.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta1</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta3.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta2</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta4.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta33</code>,
+i.e. <code>beta_{3/3}</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta5.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta4</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta6.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta5</code>.</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_theta7.txt</code></td>
+<td>Moore-space multiplication used to compute <code>beta63</code>,
+i.e. <code>beta_{6/3}</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Line counts:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th style="text-align: right;">Lines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>185_BPAANSS_table.txt</code></td>
+<td style="text-align: right;">1732</td>
+</tr>
+<tr>
+<td><code>185_BPAANSS_a0.txt</code></td>
+<td style="text-align: right;">567</td>
+</tr>
+<tr>
+<td><code>185_BPAANSS_h0.txt</code></td>
+<td style="text-align: right;">564</td>
+</tr>
+<tr>
+<td><code>185_BPB2A_table.txt</code></td>
+<td style="text-align: right;">513</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_table.txt</code></td>
+<td style="text-align: right;">12562</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_a0.txt</code></td>
+<td style="text-align: right;">605</td>
+</tr>
+<tr>
+<td><code>185_BPBocSS_h0.txt</code></td>
+<td style="text-align: right;">12562</td>
+</tr>
+<tr>
+<td>each <code>185_BPBocSS_theta*.txt</code></td>
+<td style="text-align: right;">391904</td>
+</tr>
+</tbody>
+</table>
+<p>The theta tables are huge and sparse: almost all lines map to
+<code>o</code>, but they are still parsed into memory by
+<code>ANSSData.__init__</code>.</p>
+<h2 id="lincomb.py"><code>lincomb.py</code></h2>
+<p><code>lincomb.py</code> defines <code>LinComb</code>, a linear
+combination of named generators over <code>F_3</code>.</p>
+<p>Key behavior:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Method</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>__init__</code></td>
+<td>Drops coefficients that are zero mod 3.</td>
+</tr>
+<tr>
+<td><code>__repr__</code></td>
+<td>Prints <code>0</code>, <code>x</code>, <code>2x</code>, or sums such
+as <code>x + 2y</code>.</td>
+</tr>
+<tr>
+<td><code>add</code>, <code>add_inplace</code></td>
+<td>Addition mod 3.</td>
+</tr>
+<tr>
+<td><code>scalar</code></td>
+<td>Scalar multiplication mod 3.</td>
+</tr>
+<tr>
+<td><code>map</code></td>
+<td>Applies a function from generator names to <code>LinComb</code>
+objects linearly. This is what lets products extend from generators to
+sums.</td>
+</tr>
+</tbody>
+</table>
+<p>Small code notes:</p>
+<ul>
+<li><code>lincomb.py</code> requires the external package
+<code>frozendict</code>.</li>
+<li><code>LinComb.deserialize</code> calls <code>re.split</code> but
+<code>lincomb.py</code> does not import <code>re</code>. That method is
+not used by the current repository workflow.</li>
+<li>The constructor uses a mutable default argument
+<code>elts={}</code>. In this particular implementation the default
+object is filtered into a fresh dict before assignment, but the pattern
+is still worth knowing about.</li>
+</ul>
+<h2 id="beta.py-object-construction"><code>beta.py</code>: Object
+Construction</h2>
+<p>The central class is <code>ANSSData</code>.</p>
+<p>When you run:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> beta <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> ANSSData()</span></code></pre></div>
+<p>the constructor loads the whole data set:</p>
+<ol type="1">
+<li><code>beta_mapping</code> maps theta files to public beta operation
+names.</li>
+<li><code>make_bockstein()</code> parses
+<code>185_BPBocSS_table.txt</code> into:
+<ul>
+<li><code>self.bockstein</code>: string-to-string dictionary for nonzero
+Bockstein differentials and permanent cycles.</li>
+<li><code>self.bottom_cells</code>: permanent-cycle Bockstein
+classes.</li>
+</ul></li>
+<li><code>parse_mult()</code> loads all multiplication/translation files
+into <code>dict[str, LinComb]</code>.</li>
+<li><code>make_deg_table()</code> builds <code>self.deg_table</code>,
+the degree table for sphere ANSS <code>E_2</code> generators.</li>
+<li><code>make_B2A()</code> loads Bockstein-to-algebraic-Novikov name
+conversion.</li>
+<li><code>make_B2A_inv()</code> builds a partial inverse that models the
+quotient map <code>q: E_2(S) -&gt; E_2(S/3)</code>.</li>
+<li><code>make_boc_a0div()</code> inverts Bockstein multiplication by 3
+where possible, for use inside <code>delta</code>.</li>
+</ol>
+<p>Parsed object sizes from this repo:</p>
+<table>
+<thead>
+<tr>
+<th>Object</th>
+<th style="text-align: right;">Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.deg_table</code></td>
+<td style="text-align: right;">577 generators</td>
+</tr>
+<tr>
+<td><code>data.a0table</code></td>
+<td style="text-align: right;">567 entries</td>
+</tr>
+<tr>
+<td><code>data.h0table</code></td>
+<td style="text-align: right;">564 entries</td>
+</tr>
+<tr>
+<td><code>data.bockstein</code></td>
+<td style="text-align: right;">1025 entries</td>
+</tr>
+<tr>
+<td><code>data.bottom_cells</code></td>
+<td style="text-align: right;">513 entries</td>
+</tr>
+<tr>
+<td>nonzero Bockstein entries</td>
+<td style="text-align: right;">512 entries</td>
+</tr>
+<tr>
+<td><code>data.B2A</code></td>
+<td style="text-align: right;">513 entries</td>
+</tr>
+<tr>
+<td><code>data.B2A_inv</code></td>
+<td style="text-align: right;">577 entries</td>
+</tr>
+<tr>
+<td><code>data.boc_a0div</code></td>
+<td style="text-align: right;">591 entries</td>
+</tr>
+<tr>
+<td>each <code>data.beta_table[...]</code></td>
+<td style="text-align: right;">391904 entries</td>
+</tr>
+</tbody>
+</table>
+<h2 id="where-ranks-come-from">Where Ranks Come From</h2>
+<p>The relevant code is <code>ANSSData.make_deg_table()</code> in
+<code>beta.py</code>.</p>
+<p>Its input is:</p>
+<pre class="text"><code>data/185_BPAANSS_table.txt</code></pre>
+<p>Its rule is:</p>
+<ol type="1">
+<li>Read every line.</li>
+<li>If the line contains <code>&lt;-</code>, skip it because it is an
+algebraic Novikov differential.</li>
+<li>Parse <code>deg=(stem, Adams filtration)</code>.</li>
+<li>Extract the ANSS filtration from the generator name. For a name like
+<code>[3-0]</code>, the ANSS filtration is <code>3</code>; for
+<code>v0^2[3-0]</code>, it is still <code>3</code>.</li>
+<li>Store:</li>
+</ol>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.deg_table[name] <span class="op">=</span> {</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;s&quot;</span>: stem,</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;f&quot;</span>: anss_filt,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;nov&quot;</span>: adams_filt <span class="op">-</span> anss_filt,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>So <code>deg_table</code> is the true generator list used by the code
+for the sphere ANSS <code>E_2</code> page.</p>
+<p>The helper:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>data.in_deg(stem, filtration)</span></code></pre></div>
+<p>returns all generator names in a fixed
+<code>(stem, ANSS filtration)</code>. Therefore:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>rank <span class="op">=</span> <span class="bu">len</span>(data.in_deg(stem, filtration))</span></code></pre></div>
+<p>This is the rank/dimension over <code>F_3</code> represented by the
+parsed basis in that bidegree.</p>
+<p>To generate a complete rank list:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> beta <span class="im">import</span> ANSSData</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> ANSSData()</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>rank_by_degree <span class="op">=</span> Counter(</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    (row[<span class="st">&quot;s&quot;</span>], row[<span class="st">&quot;f&quot;</span>])</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row <span class="kw">in</span> data.deg_table.values()</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (stem, filtration), rank <span class="kw">in</span> <span class="bu">sorted</span>(rank_by_degree.items()):</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(stem, filtration, rank)</span></code></pre></div>
+<p>Observed rank summary:</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th style="text-align: right;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sphere <code>E_2</code> generators in <code>deg_table</code></td>
+<td style="text-align: right;">577</td>
+</tr>
+<tr>
+<td>Occupied <code>(stem, ANSS filtration)</code> bidegrees</td>
+<td style="text-align: right;">424</td>
+</tr>
+<tr>
+<td>Maximum rank in one bidegree</td>
+<td style="text-align: right;">40</td>
+</tr>
+<tr>
+<td>Highest represented stem</td>
+<td style="text-align: right;">182</td>
+</tr>
+<tr>
+<td>Highest represented ANSS filtration</td>
+<td style="text-align: right;">31</td>
+</tr>
+</tbody>
+</table>
+<p>Sample degree lookups:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>data.in_deg(<span class="dv">3</span>, <span class="dv">1</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co"># [&#39;[1-0]&#39;]</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="bu">len</span>(data.in_deg(<span class="dv">3</span>, <span class="dv">1</span>))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 1</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>data.show_deg(<span class="st">&quot;[1-0]&quot;</span>)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="co"># (3, 1, 0)</span></span></code></pre></div>
+<p>The rank at <code>(0, 0)</code> is 40 because the file contains the
+3-divisibility tower:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>data.in_deg(<span class="dv">0</span>, <span class="dv">0</span>)[:<span class="dv">8</span>]</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="co"># [&#39;[0-0]&#39;, &#39;v0^1[0-0]&#39;, &#39;v0^2[0-0]&#39;, &#39;v0^3[0-0]&#39;,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co">#  &#39;v0^4[0-0]&#39;, &#39;v0^5[0-0]&#39;, &#39;v0^6[0-0]&#39;, &#39;v0^7[0-0]&#39;]</span></span></code></pre></div>
+<h2 id="where-product-lists-come-from">Where Product Lists Come
+From</h2>
+<p>The “product information” in this repository means multiplication of
+each listed <code>E_2</code> generator by a small set of important named
+elements. It is not a general two-input multiplication function that
+accepts arbitrary classes <code>x</code> and <code>y</code>.</p>
+<p>The available sphere <code>E_2</code> multiplication operations
+are:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Operation in Python</th>
+<th>Mathematical product</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.three(x)</code></td>
+<td><code>3x</code>, equivalently multiplication by
+<code>v0</code>/<code>a0</code> in the tables</td>
+</tr>
+<tr>
+<td><code>data.alpha1(x)</code></td>
+<td><code>alpha_1 x</code>, called <code>h0</code> in the table
+filenames</td>
+</tr>
+<tr>
+<td><code>data.beta1(x)</code></td>
+<td><code>beta_1 x</code></td>
+</tr>
+<tr>
+<td><code>data.beta2(x)</code></td>
+<td><code>beta_2 x</code></td>
+</tr>
+<tr>
+<td><code>data.beta33(x)</code></td>
+<td><code>beta_{3/3} x</code></td>
+</tr>
+<tr>
+<td><code>data.beta4(x)</code></td>
+<td><code>beta_4 x</code></td>
+</tr>
+<tr>
+<td><code>data.beta5(x)</code></td>
+<td><code>beta_5 x</code></td>
+</tr>
+<tr>
+<td><code>data.beta63(x)</code></td>
+<td><code>beta_{6/3} x</code></td>
+</tr>
+</tbody>
+</table>
+<p>Each operation is a linear map on the <code>F_3</code>-basis of
+generators. For example, once the code knows <code>alpha_1 x</code> and
+<code>alpha_1 y</code>, it computes <code>alpha_1(x + 2y)</code> by
+linearity:</p>
+<pre class="text"><code>alpha_1(x + 2y) = alpha_1 x + 2 alpha_1 y</code></pre>
+<p>A product-table line has the form:</p>
+<pre class="text"><code>source  -&gt;  target1+target2+o</code></pre>
+<p>This means “the chosen multiplier times <code>source</code> is the
+linear combination of target terms.” The symbol <code>o</code> is
+ignored by <code>parse_mult</code>; it represents zero/no extra term in
+this Python interface. Repeated target names are added in
+<code>F_3</code>, so two copies of the same term print with coefficient
+<code>2</code>, and three copies cancel.</p>
+<p>For example, in <code>185_BPAANSS_a0.txt</code>:</p>
+<pre class="text"><code>[0-0]   -&gt;  v0^1[0-0]+o</code></pre>
+<p>means:</p>
+<pre class="text"><code>3 * [0-0] = v0^1[0-0]</code></pre>
+<p>and in <code>185_BPAANSS_h0.txt</code>:</p>
+<pre class="text"><code>[0-0]   -&gt;  [1-0]+o</code></pre>
+<p>means:</p>
+<pre class="text"><code>alpha_1 * [0-0] = [1-0]</code></pre>
+<p>There is no single final file containing every sphere
+<code>E_2</code> product. Products are either direct table lookups or
+are computed from several tables.</p>
+<h3 id="multiplication-by-3">Multiplication by <code>3</code></h3>
+<p>Loaded in <code>ANSSData.__init__</code> as:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.a0table <span class="op">=</span> <span class="va">self</span>.parse_mult(<span class="va">self</span>.file_prefix <span class="op">+</span> <span class="st">&quot;_BPAANSS_a0.txt&quot;</span>)</span></code></pre></div>
+<p>Public method:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>data.three(x)</span></code></pre></div>
+<p>For a generator string, this returns <code>self.a0table[x]</code>.
+For a <code>LinComb</code>, it maps linearly over the terms.</p>
+<p>The source data file is <code>data/185_BPAANSS_a0.txt</code>. Its
+entries are already in algebraic Novikov/sphere notation, so no name
+translation is needed. The file gives the product on generators;
+<code>LinComb.map</code> extends it to sums.</p>
+<h3 id="multiplication-by-alpha_1">Multiplication by
+<code>alpha_1</code></h3>
+<p>Loaded in <code>ANSSData.__init__</code> as:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.h0table <span class="op">=</span> <span class="va">self</span>.parse_mult(<span class="va">self</span>.file_prefix <span class="op">+</span> <span class="st">&quot;_BPAANSS_h0.txt&quot;</span>)</span></code></pre></div>
+<p>Public method:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>data.alpha1(x)</span></code></pre></div>
+<p>Again, strings are looked up directly and linear combinations are
+handled term-by-term.</p>
+<p>The source data file is <code>data/185_BPAANSS_h0.txt</code>. As with
+multiplication by <code>3</code>, this table is already a sphere
+<code>E_2</code> table in algebraic Novikov notation.</p>
+<h3 id="beta-products">Beta products</h3>
+<p>Beta products are more complicated because the raw data files do not
+directly say:</p>
+<pre class="text"><code>beta_i * sphere_generator -&gt; sphere_linear_combination</code></pre>
+<p>Instead, the computation uses the mod-3 Moore spectrum
+<code>S/3</code>. The theta files describe multiplication on
+<code>E_2(S/3)</code> by classes whose boundary images are beta elements
+in <code>E_2(S)</code>. Therefore <code>beta.py</code> has to translate
+into Moore/Bockstein names, multiply there, and translate back.</p>
+<p>The beta methods are:</p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>data.beta1(x)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>data.beta2(x)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>data.beta33(x)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>data.beta4(x)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>data.beta5(x)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>data.beta63(x)</span></code></pre></div>
+<p>They all call:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>data.beta_n(n, x)</span></code></pre></div>
+<p>For a generator <code>x</code>, <code>beta_n</code> performs:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>rtn <span class="op">=</span> <span class="va">self</span>.B2A_inv[x]</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>rtn <span class="op">=</span> rtn.<span class="bu">map</span>(<span class="kw">lambda</span> s: <span class="va">self</span>.beta_table[<span class="st">&quot;beta&quot;</span> <span class="op">+</span> n][s])</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>rtn <span class="op">=</span> rtn.<span class="bu">map</span>(<span class="kw">lambda</span> s: <span class="va">self</span>.delta(s))</span></code></pre></div>
+<p>Mathematically, this is:</p>
+<ol type="1">
+<li>Apply <code>q: E_2(S) -&gt; E_2(S/3)</code> using
+<code>B2A_inv</code>.</li>
+<li>Multiply on <code>E_2(S/3)</code> by the theta class corresponding
+to the desired beta element.</li>
+<li>Apply the boundary map
+<code>delta: E_2(S/3) -&gt; E_2(S)</code>.</li>
+</ol>
+<p>So a beta product is not a direct lookup in one final beta table. It
+is the composite:</p>
+<pre class="text"><code>E_2(S) --q--&gt; E_2(S/3) --theta_i--&gt; E_2(S/3) --delta--&gt; E_2(S)</code></pre>
+<p>The code names for these pieces are:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Code object</th>
+<th>Data source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>q</code> from sphere to Moore names</td>
+<td><code>self.B2A_inv</code></td>
+<td>inverse of <code>185_BPB2A_table.txt</code>, with divisible/edge
+cases removed</td>
+</tr>
+<tr>
+<td>theta multiplication on Moore classes</td>
+<td><code>self.beta_table[...]</code></td>
+<td>one of the <code>185_BPBocSS_theta*.txt</code> files</td>
+</tr>
+<tr>
+<td>boundary back to sphere classes</td>
+<td><code>self.delta(...)</code></td>
+<td><code>185_BPBocSS_table.txt</code>, <code>185_BPBocSS_a0.txt</code>,
+and <code>185_BPB2A_table.txt</code></td>
+</tr>
+</tbody>
+</table>
+<p>The theta-to-beta mapping is:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Theta table</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>beta1</code></td>
+<td><code>185_BPBocSS_theta2.txt</code></td>
+</tr>
+<tr>
+<td><code>beta2</code></td>
+<td><code>185_BPBocSS_theta3.txt</code></td>
+</tr>
+<tr>
+<td><code>beta33</code></td>
+<td><code>185_BPBocSS_theta4.txt</code></td>
+</tr>
+<tr>
+<td><code>beta4</code></td>
+<td><code>185_BPBocSS_theta5.txt</code></td>
+</tr>
+<tr>
+<td><code>beta5</code></td>
+<td><code>185_BPBocSS_theta6.txt</code></td>
+</tr>
+<tr>
+<td><code>beta63</code></td>
+<td><code>185_BPBocSS_theta7.txt</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="the-boundary-map-delta">The boundary map <code>delta</code></h3>
+<p><code>delta</code> is the most subtle part of
+<code>beta.py</code>.</p>
+<p>Input: a Bockstein/Moore generator name.</p>
+<p>Process:</p>
+<ol type="1">
+<li>Look up the Bockstein differential in
+<code>self.bockstein</code>.</li>
+<li>Permanent cycles map to zero.</li>
+<li>If the Bockstein target is divisible by 3 in Bockstein notation,
+repeatedly divide using <code>self.boc_a0div</code>.</li>
+<li>Convert the resulting non-3-divisible Bockstein names to algebraic
+Novikov names using <code>self.B2A</code>.</li>
+<li>Re-apply the required powers of 3 using
+<code>self.boc_a0table</code>.</li>
+</ol>
+<p>This implements the README’s statement that a Bockstein differential
+<code>d_r(x)=y</code> gives <code>delta(x)=y/3</code>, with extra work
+needed because generator names are leading-term names and not literal
+monomials.</p>
+<h3 id="generating-a-complete-product-list">Generating a complete
+product list</h3>
+<p>To list products in the sphere ANSS <code>E_2</code> page, iterate
+through <code>data.deg_table</code>.</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> beta <span class="im">import</span> ANSSData</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> ANSSData()</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>ops <span class="op">=</span> [<span class="st">&quot;three&quot;</span>, <span class="st">&quot;alpha1&quot;</span>, <span class="st">&quot;beta1&quot;</span>, <span class="st">&quot;beta2&quot;</span>, <span class="st">&quot;beta33&quot;</span>, <span class="st">&quot;beta4&quot;</span>, <span class="st">&quot;beta5&quot;</span>, <span class="st">&quot;beta63&quot;</span>]</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> g <span class="kw">in</span> <span class="bu">sorted</span>(data.deg_table):</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> op <span class="kw">in</span> ops:</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>            value <span class="op">=</span> <span class="bu">getattr</span>(data, op)(g)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">KeyError</span> <span class="im">as</span> err:</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>            value <span class="op">=</span> <span class="ss">f&quot;missing table entry: </span><span class="sc">{</span>err<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(g, op, value)</span></code></pre></div>
+<p>Some products near the edge of the computation raise
+<code>KeyError</code> because the multiplication table does not contain
+the needed target/source beyond the computed range. I observed:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: right;">Nonzero results</th>
+<th style="text-align: right;">Zero results</th>
+<th style="text-align: right;">Key errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>three</code></td>
+<td style="text-align: right;">63</td>
+<td style="text-align: right;">504</td>
+<td style="text-align: right;">10</td>
+</tr>
+<tr>
+<td><code>alpha1</code></td>
+<td style="text-align: right;">237</td>
+<td style="text-align: right;">327</td>
+<td style="text-align: right;">13</td>
+</tr>
+<tr>
+<td><code>beta1</code></td>
+<td style="text-align: right;">368</td>
+<td style="text-align: right;">209</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>beta2</code></td>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">377</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>beta33</code></td>
+<td style="text-align: right;">211</td>
+<td style="text-align: right;">366</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>beta4</code></td>
+<td style="text-align: right;">137</td>
+<td style="text-align: right;">440</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>beta5</code></td>
+<td style="text-align: right;">47</td>
+<td style="text-align: right;">530</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>beta63</code></td>
+<td style="text-align: right;">73</td>
+<td style="text-align: right;">503</td>
+<td style="text-align: right;">1</td>
+</tr>
+</tbody>
+</table>
+<p>Examples matching the README and parser run:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>data.alpha1(<span class="st">&quot;[1-0]&quot;</span>)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 0</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>data.three(<span class="st">&quot;[1-0]&quot;</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 0</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>data.beta1(<span class="st">&quot;[1-0]&quot;</span>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 2[3-0]</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>data.beta2(<span class="st">&quot;[2-2]&quot;</span>)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 2[4-4]</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>data.alpha1(data.beta2(<span class="st">&quot;[2-2]&quot;</span>))</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 2[5-4]</span></span></code></pre></div>
+<h2 id="important-code-quirks">Important Code Quirks</h2>
+<h3 id="duplicate-make_b2a">Duplicate <code>make_B2A</code></h3>
+<p><code>beta.py</code> defines <code>make_B2A</code> twice. The first
+definition manually parses <code>185_BPB2A_table.txt</code>; the second
+definition, later in the class, simply calls
+<code>parse_mult</code>.</p>
+<p>In Python, the second definition wins. So the active method is:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_B2A(<span class="va">self</span>):</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">self</span>.parse_mult(<span class="va">self</span>.file_prefix <span class="op">+</span> <span class="st">&quot;_BPB2A_table.txt&quot;</span>)</span></code></pre></div>
+<p>The earlier definition is dead code.</p>
+<h3 id="unused-specialized-make_boc_a0table">Unused specialized
+<code>make_boc_a0table</code></h3>
+<p>There is a method <code>make_boc_a0table</code> that filters
+Bockstein multiplication-by-3 targets to remove terms killed by
+<code>d0</code>s. However, <code>__init__</code> currently sets:</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.boc_a0table <span class="op">=</span> <span class="va">self</span>.parse_mult(<span class="va">self</span>.file_prefix <span class="op">+</span> <span class="st">&quot;_BPBocSS_a0.txt&quot;</span>)</span></code></pre></div>
+<p>so the specialized method is not used. The inversion step in
+<code>make_boc_a0div</code> does have an exclusion function for
+<code>d0</code>-related terms, but the raw <code>boc_a0table</code>
+object itself is the unfiltered parse.</p>
+<h3 id="python-warnings">Python warnings</h3>
+<p>Running under Python 3.14 emits <code>SyntaxWarning</code>s for regex
+strings like <code>"\+"</code>, <code>"\|"</code>, and
+<code>"\["</code>. The code still runs, but these should eventually be
+raw strings such as <code>r"\+"</code>.</p>
+<h3 id="no-command-line-interface">No command-line interface</h3>
+<p>The repository is meant to be used from an interactive Python
+interpreter or a small ad hoc script. There is no CLI, package metadata,
+or test suite.</p>
+<h2 id="practical-recipes">Practical Recipes</h2>
+<p>Start Python with the local environment:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span></span></code></pre></div>
+<p>Load the data:</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> beta <span class="im">import</span> <span class="op">*</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> ANSSData()</span></code></pre></div>
+<p>Find generators in a bidegree:</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>data.in_deg(<span class="dv">3</span>, <span class="dv">1</span>)</span></code></pre></div>
+<p>Get one generator’s degree:</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>data.show_deg(<span class="st">&quot;[1-0]&quot;</span>)</span></code></pre></div>
+<p>Compute products:</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>data.three(<span class="st">&quot;[0-0]&quot;</span>)</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>data.alpha1(<span class="st">&quot;[0-0]&quot;</span>)</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>data.beta1(<span class="st">&quot;[1-0]&quot;</span>)</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>data.beta2(<span class="st">&quot;[2-2]&quot;</span>)</span></code></pre></div>
+<p>Generate rank data:</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>ranks <span class="op">=</span> Counter((r[<span class="st">&quot;s&quot;</span>], r[<span class="st">&quot;f&quot;</span>]) <span class="cf">for</span> r <span class="kw">in</span> data.deg_table.values())</span></code></pre></div>
+<p>Generate all nonzero beta1 products:</p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> g <span class="kw">in</span> <span class="bu">sorted</span>(data.deg_table):</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> data.beta1(g)</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> y:</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>g<span class="sc">}</span><span class="ss"> -&gt; </span><span class="sc">{</span>y<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h2 id="verification-performed">Verification Performed</h2>
+<p>I verified the following locally:</p>
+<ol type="1">
+<li>Created <code>.venv</code> and installed
+<code>frozendict</code>.</li>
+<li>Imported <code>beta.py</code> successfully with
+<code>.venv/bin/python</code>.</li>
+<li>Instantiated <code>ANSSData()</code>, which parsed all data
+files.</li>
+<li>Checked README examples:
+<ul>
+<li><code>data.in_deg(3, 1)</code> returns <code>['[1-0]']</code>.</li>
+<li><code>data.beta1("[1-0]")</code> returns <code>2[3-0]</code>.</li>
+<li><code>data.alpha1("[1-0]")</code> returns <code>0</code>.</li>
+<li><code>data.alpha1(data.beta2("[2-2]"))</code> returns
+<code>2[5-4]</code>.</li>
+</ul></li>
+<li>Confirmed Pandoc is available for compiling this markdown note.</li>
+</ol>
