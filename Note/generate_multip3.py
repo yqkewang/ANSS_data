@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-"""Generate a data-only CSV table for alpha_1 products from BPAANSS_h0."""
+"""Generate a data-only CSV table for multiplication by 3."""
 
 from __future__ import annotations
 
-import re
 import csv
+import re
 from collections import defaultdict
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEGREE_TABLE = REPO_ROOT / "data" / "185_BPAANSS_table.txt"
-H0_TABLE = REPO_ROOT / "data" / "185_BPAANSS_h0.txt"
-CSV_OUT = REPO_ROOT / "Note" / "ANSS_alpha1_products.csv"
+MULTIP3_TABLE = REPO_ROOT / "data" / "185_BPAANSS_a0.txt"
+CSV_OUT = REPO_ROOT / "Note" / "ANSS_multip3.csv"
 
 
-def parse_degree_data() -> tuple[dict[str, tuple[int, int]], dict[tuple[int, int], list[str]]]:
-    """Return generator degrees and basis lists by (stem, ANSS filtration)."""
+def parse_degree_data() -> tuple[
+    dict[str, tuple[int, int]],
+    dict[tuple[int, int], list[str]],
+    dict[str, int],
+]:
+    """Return generator degrees, basis lists by (stem, ANSS filtration), and basis order."""
     name_to_degree: dict[str, tuple[int, int]] = {}
     basis_by_degree: dict[tuple[int, int], list[str]] = defaultdict(list)
+    name_to_index: dict[str, int] = {}
 
     with DEGREE_TABLE.open() as fh:
         for line in fh:
@@ -35,8 +40,9 @@ def parse_degree_data() -> tuple[dict[str, tuple[int, int]], dict[tuple[int, int
             filtration = int(filt_match.group(1))
             name_to_degree[name] = (stem, filtration)
             basis_by_degree[(stem, filtration)].append(name)
+            name_to_index[name] = len(name_to_index)
 
-    return name_to_degree, basis_by_degree
+    return name_to_degree, basis_by_degree, name_to_index
 
 
 def parse_linear_combination(raw_target: str) -> dict[str, int]:
@@ -57,50 +63,59 @@ def vector_for_terms(terms: dict[str, int], target_basis: list[str]) -> tuple[in
 
 
 def format_csv_vector(vector: tuple[int, ...]) -> str:
-    """Format vectors with brackets so spreadsheet apps keep entries nonnegative."""
     return f"[{', '.join(str(entry) for entry in vector)}]"
 
 
 def write_csv() -> None:
-    name_to_degree, basis_by_degree = parse_degree_data()
+    name_to_degree, basis_by_degree, name_to_index = parse_degree_data()
     product_rows = []
+    source_names = set()
+    nonzero_count = 0
 
-    with H0_TABLE.open() as fh:
+    with MULTIP3_TABLE.open() as fh:
         for line in fh:
             source, raw_target = line.rstrip("\n").split("\t->\t")
-            s1, f1 = name_to_degree[source]
-            s2, f2 = s1 + 3, f1 + 1
-            terms = parse_linear_combination(raw_target)
-            if not terms:
-                continue
+            source_names.add(source)
+            if source not in name_to_degree:
+                raise ValueError(f"Source {source} is not in {DEGREE_TABLE.relative_to(REPO_ROOT)}")
 
+            stem, filtration = name_to_degree[source]
+            terms = parse_linear_combination(raw_target)
             for target in terms:
+                if target not in name_to_degree:
+                    raise ValueError(f"Target {target} is not in {DEGREE_TABLE.relative_to(REPO_ROOT)}")
                 target_degree = name_to_degree[target]
-                if target_degree != (s2, f2):
+                if target_degree != (stem, filtration):
                     raise ValueError(
-                        f"{source} target {target} has degree {target_degree}, expected {(s2, f2)}"
+                        f"{source} target {target} has degree {target_degree}, expected {(stem, filtration)}"
                     )
 
-            basis = basis_by_degree.get((s2, f2), [])
+            basis = basis_by_degree[(stem, filtration)]
             vector = vector_for_terms(terms, basis)
+            if any(vector):
+                nonzero_count += 1
             product_rows.append(
                 (
-                    s1,
-                    f1,
-                    source,
+                    stem,
+                    filtration,
+                    name_to_index[source],
                     format_csv_vector(vector),
                 )
             )
 
     product_rows.sort(key=lambda row: (row[0], row[1], row[2]))
+    missing_sources = set(name_to_degree) - source_names
 
     with CSV_OUT.open("w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["s_1", "f_1", "product"])
-        for s1, f1, _source, product in product_rows:
-            writer.writerow([s1, f1, product])
+        writer.writerow(["s", "f", "product"])
+        for stem, filtration, _source_index, product in product_rows:
+            writer.writerow([stem, filtration, product])
 
-    print(f"Wrote {CSV_OUT.relative_to(REPO_ROOT)} with {len(product_rows)} nonzero products")
+    print(
+        f"Wrote {CSV_OUT.relative_to(REPO_ROOT)} with {len(product_rows)} products, "
+        f"{nonzero_count} nonzero products, and {len(missing_sources)} basis generators absent from the a0 table"
+    )
 
 
 if __name__ == "__main__":

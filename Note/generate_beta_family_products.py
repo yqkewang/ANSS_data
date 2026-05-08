@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate markdown and CSV tables for beta-family products."""
+"""Generate data-only CSV tables and one explanation file for beta-family products."""
 
 from __future__ import annotations
 
@@ -17,7 +17,16 @@ from beta import ANSSData  # noqa: E402
 
 
 DEGREE_TABLE = REPO_ROOT / "data" / "185_BPAANSS_table.txt"
+EXPLANATION_OUT = REPO_ROOT / "Note" / "ANSS_beta_family_products_explanation.md"
 OUTPUTS = [
+    {
+        "method": "beta1",
+        "label": "beta_1",
+        "title": "Beta_1 Products",
+        "theta": "data/185_BPBocSS_theta2.txt",
+        "shift": (10, 2),
+        "stem": "beta1",
+    },
     {
         "method": "beta2",
         "label": "beta_2",
@@ -90,76 +99,25 @@ def vector_for_terms(terms: dict[str, int], target_basis: list[str]) -> tuple[in
     return tuple(terms.get(term, 0) for term in target_basis)
 
 
-def format_markdown_vector(vector: tuple[int, ...]) -> str:
-    return f"`({', '.join(str(entry) for entry in vector)})`"
+def format_csv_vector(vector: tuple[int, ...]) -> str:
+    """Format vectors with brackets so spreadsheet apps keep entries nonnegative."""
+    return f"[{', '.join(str(entry) for entry in vector)}]"
 
 
-def markdown_table_to_csv(markdown_in: Path, csv_out: Path, config: dict[str, object]) -> None:
-    rows: list[list[str]] = []
-    for line in markdown_in.read_text().splitlines():
-        if not line.startswith("|"):
-            continue
-        cells = [cell.strip().strip("`") for cell in line.strip("|").split("|")]
-        if cells == ["s_1", "f_1", "product"]:
-            rows.append(cells)
-        elif len(cells) == 3 and cells[0].isdigit() and cells[1].isdigit():
-            if cells[2].startswith("(") and cells[2].endswith(")"):
-                cells[2] = f"[{cells[2][1:-1]}]"
-            rows.append(cells)
-
-    with csv_out.open("w", newline="") as fh:
-        fh.write(f"# {config['title']} in the ANSS E2 Page\n")
-        fh.write(f"# Product data are computed by beta.py: ANSSData().{config['method']}(x).\n")
-        fh.write(f"# {config['method']} uses B2A_inv, {config['theta']}, and delta to compute products through E_2(S/3).\n")
-        fh.write("# Degree and basis source: data/185_BPAANSS_table.txt.\n")
-        fh.write("# Only nonzero computable products are displayed.\n")
-        fh.write("# Rows are sorted by increasing s_1, then increasing f_1.\n")
-        fh.write("# The product column is the coordinate vector in the original target-basis order from 185_BPAANSS_table.txt.\n")
-        fh.write("# Product vectors use square brackets in this CSV so spreadsheet apps do not interpret (1) as -1.\n")
-        fh.write("# Data rows begin after the s_1,f_1,product header.\n")
-        writer = csv.writer(fh)
-        writer.writerows(rows)
-
-    print(f"Wrote {csv_out.relative_to(REPO_ROOT)}")
-
-
-def write_product_files(
+def write_product_csv(
     data: ANSSData,
     name_to_degree: dict[str, tuple[int, int]],
     basis_by_degree: dict[tuple[int, int], list[str]],
     config: dict[str, object],
-) -> None:
+) -> dict[str, object]:
     method_name = str(config["method"])
-    label = str(config["label"])
-    title = str(config["title"])
-    theta = str(config["theta"])
     shift_s, shift_f = config["shift"]
     stem = str(config["stem"])
-    markdown_out = REPO_ROOT / "Note" / f"ANSS_{stem}_products.md"
     csv_out = REPO_ROOT / "Note" / f"ANSS_{stem}_products.csv"
     method = getattr(data, method_name)
     product_rows = []
     error_rows = []
     zero_count = 0
-
-    lines = [
-        f"# {title} in the ANSS E2 Page",
-        "",
-        "## How This Table Was Generated",
-        "",
-        f"Product computation: `ANSSData().{method_name}(x)` in `beta.py`.",
-        "Degree and basis source: `data/185_BPAANSS_table.txt`.",
-        "",
-        f"The method `{method_name}(x)` computes `{label}*x` by the same beta-family composite used for `beta_1`: it applies `B2A_inv`, then the corresponding Moore-spectrum theta multiplication table `{theta}`, then the boundary map `delta` back to sphere names.",
-        "",
-        "For each source generator `x`, I find its chart position `(s_1,f_1)` from `185_BPAANSS_table.txt`: the stem `s_1` is the first coordinate in `deg=(s,r)`, and the ANSS filtration `f_1` is the first number in the bracketed generator name `[f-b]`.",
-        "",
-        f"The class `{label}` has chart degree `({shift_s},{shift_f})`, so the product lies in `(s_2,f_2)=(s_1+{shift_s},f_1+{shift_f})`. I checked every nonzero target term returned by `{method_name}` and confirmed that it has this same position.",
-        "",
-        "Only nonzero computable products are displayed. Rows are sorted by increasing `s_1`, then increasing `f_1`; if multiple source generators have the same `(s_1,f_1)`, their rows are ordered by source-generator name.",
-        "",
-        f"The `product` column is a coordinate vector for `{label}*x` in the target group at `(s_2,f_2)=(s_1+{shift_s},f_1+{shift_f})`. The ordered target basis is the original basis order from `185_BPAANSS_table.txt`, restricted to that target group. Coefficients are reduced mod 3.",
-    ]
 
     for source in name_to_degree:
         s1, f1 = name_to_degree[source]
@@ -189,54 +147,104 @@ def write_product_files(
                 s1,
                 f1,
                 source,
-                f"| {s1} | {f1} | {format_markdown_vector(vector)} |",
+                format_csv_vector(vector),
             )
         )
 
-    lines.extend(
-        [
-            "",
-            f"Computed summary: `{len(product_rows)}` nonzero rows, `{zero_count}` zero products omitted, `{len(error_rows)}` products skipped because the existing data/code could not compute them.",
-        ]
-    )
+    product_rows.sort(key=lambda row: (row[0], row[1], row[2]))
 
-    if error_rows:
+    with csv_out.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["s_1", "f_1", "product"])
+        for s1, f1, _source, product in product_rows:
+            writer.writerow([s1, f1, product])
+
+    print(
+        f"Wrote {csv_out.relative_to(REPO_ROOT)} with {len(product_rows)} nonzero products, "
+        f"{zero_count} zero products omitted, and {len(error_rows)} skipped computations"
+    )
+    return {
+        "config": config,
+        "csv_out": csv_out,
+        "nonzero_count": len(product_rows),
+        "zero_count": zero_count,
+        "error_rows": error_rows,
+    }
+
+
+def write_combined_explanation(summaries: list[dict[str, object]]) -> None:
+    lines = [
+        "# Beta-Family Products Explanation",
+        "",
+        "Product CSV files are generated by `Note/generate_beta_family_products.py`.",
+        "",
+        "Degree and basis source: `data/185_BPAANSS_table.txt`.",
+        "",
+        "Each beta-family method computes products by the same beta-family composite used for `beta_1`: it applies `B2A_inv`, then the corresponding Moore-spectrum theta multiplication table, then the boundary map `delta` back to sphere names.",
+        "",
+        "For each source generator `x`, the script finds its chart position `(s_1,f_1)` from `185_BPAANSS_table.txt`: the stem `s_1` is the first coordinate in `deg=(s,r)`, and the ANSS filtration `f_1` is the first number in the bracketed generator name `[f-b]`.",
+        "",
+        "If a class has chart degree `(a,b)`, then its product with `x` lies in `(s_2,f_2)=(s_1+a,f_1+b)`. The generator checks every nonzero target term returned by the product method and confirms that it has this same position.",
+        "",
+        "Only nonzero computable products are written to the CSV files. Rows are sorted by increasing `s_1`, then increasing `f_1`; if multiple source generators have the same `(s_1,f_1)`, their rows are ordered by source-generator name.",
+        "",
+        "The `product` column is a coordinate vector in the target group. The ordered target basis is the original basis order from `185_BPAANSS_table.txt`, restricted to that target group. Coefficients are reduced mod 3.",
+        "",
+        "Product vectors use square brackets in the CSV files so spreadsheet apps do not interpret vectors like `(1)` as accounting notation for `-1`.",
+        "",
+        "## Product Files",
+        "",
+        "| class | CSV | method | theta table | chart degree | nonzero rows | zero products omitted | skipped computations |",
+        "|---|---|---|---|---:|---:|---:|---:|",
+    ]
+
+    for summary in summaries:
+        config = summary["config"]
+        csv_out = summary["csv_out"]
+        shift_s, shift_f = config["shift"]
+        error_rows = summary["error_rows"]
+        lines.append(
+            f"| `{config['label']}` | `{csv_out.relative_to(REPO_ROOT)}` | "
+            f"`ANSSData().{config['method']}(x)` | `{config['theta']}` | "
+            f"`({shift_s},{shift_f})` | {summary['nonzero_count']} | "
+            f"{summary['zero_count']} | {len(error_rows)} |"
+        )
+
+    skipped = [
+        (summary["config"], error_row)
+        for summary in summaries
+        for error_row in summary["error_rows"]
+    ]
+    if skipped:
         lines.extend(
             [
                 "",
-                "Skipped computations:",
+                "## Skipped Computations",
                 "",
-                "| source | s_1 | f_1 | error | detail |",
-                "|---|---:|---:|---|---|",
+                "These are skipped because the existing data/code could not compute them.",
+                "",
+                "| class | source | s_1 | f_1 | error | detail |",
+                "|---|---|---:|---:|---|---|",
             ]
         )
-        for source, s1, f1, error_type, detail in error_rows:
+        for config, (source, s1, f1, error_type, detail) in skipped:
             escaped_detail = detail.replace("|", "\\|")
-            lines.append(f"| `{source}` | {s1} | {f1} | `{error_type}` | `{escaped_detail}` |")
+            lines.append(
+                f"| `{config['label']}` | `{source}` | {s1} | {f1} | "
+                f"`{error_type}` | `{escaped_detail}` |"
+            )
 
-    lines.extend(
-        [
-            "",
-            "## Product Table",
-            "",
-            "| s_1 | f_1 | product |",
-            "|---:|---:|---|",
-        ]
-    )
-
-    product_rows.sort(key=lambda row: (row[0], row[1], row[2]))
-    lines.extend(row[-1] for row in product_rows)
-
-    markdown_out.write_text("\n".join(lines) + "\n")
-    print(f"Wrote {markdown_out.relative_to(REPO_ROOT)} with {len(product_rows)} nonzero products")
-    markdown_table_to_csv(markdown_out, csv_out, config)
+    EXPLANATION_OUT.write_text("\n".join(lines) + "\n")
+    print(f"Wrote {EXPLANATION_OUT.relative_to(REPO_ROOT)}")
 
 
 def main() -> None:
     data = ANSSData()
     name_to_degree, basis_by_degree = parse_degree_data()
+    summaries = []
     for config in OUTPUTS:
-        write_product_files(data, name_to_degree, basis_by_degree, config)
+        summaries.append(write_product_csv(data, name_to_degree, basis_by_degree, config))
+    write_combined_explanation(summaries)
 
 
 if __name__ == "__main__":

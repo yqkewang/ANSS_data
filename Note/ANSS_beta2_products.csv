@@ -1,12 +1,3 @@
-# Beta_2 Products in the ANSS E2 Page
-# Product data are computed by beta.py: ANSSData().beta2(x).
-# beta2 uses B2A_inv, data/185_BPBocSS_theta3.txt, and delta to compute products through E_2(S/3).
-# Degree and basis source: data/185_BPAANSS_table.txt.
-# Only nonzero computable products are displayed.
-# Rows are sorted by increasing s_1, then increasing f_1.
-# The product column is the coordinate vector in the original target-basis order from 185_BPAANSS_table.txt.
-# Product vectors use square brackets in this CSV so spreadsheet apps do not interpret (1) as -1.
-# Data rows begin after the s_1,f_1,product header.
 s_1,f_1,product
 0,0,[2]
 3,1,[2]
